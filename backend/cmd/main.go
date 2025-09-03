@@ -38,8 +38,8 @@ func main() {
 		AllowOrigins: []string{
 			"http://localhost:5173", // Vite dev
 			"http://127.0.0.1:5173", // Vite dev
-			"http://localhost:3000", // Docker nginx
-			"http://127.0.0.1:3000", // Docker nginx
+			"http://localhost:3001", // Docker nginx
+			"http://127.0.0.1:3001", // Docker nginx
 		},
 		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 		AllowHeaders:     []string{echo.HeaderContentType, echo.HeaderAuthorization},

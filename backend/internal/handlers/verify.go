@@ -123,7 +123,7 @@ func verificationPage(success bool, title, message string) string {
 		  <div class="card">
 		    <h2>%s</h2>
 		    <p>%s</p>
-		    <a href="http://localhost:3000/login">Go to Sign In</a>
+		    <a href="http://localhost:3001/login">Go to Sign In</a>
 		  </div>
 		</body>
 		</html>

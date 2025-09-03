@@ -97,8 +97,8 @@ body {
 }
 .dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: #3ce37a;
-  box-shadow: 0 0 10px #3ce37a66;
+  background: #ff4032;
+  box-shadow: 0 0 10px #e36b3c66;
 }
 
 /* Background blobs (expanded to fill screen nicely) */

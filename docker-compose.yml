@@ -3,7 +3,7 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: example
-      MYSQL_DATABASE: secure_comm
+      MYSQL_DATABASE: insecure_comm
       # It is recommended to also have an application user and not just root:
       MYSQL_USER: app
       MYSQL_PASSWORD: secret
@@ -16,12 +16,12 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "3306:3306"
+      - "3307:3306"
 
   backend:
     build: ./backend
     ports:
-      - "8080:8080"
+      - "8081:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -36,15 +36,15 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3000:80"
+      - "3001:80"
     depends_on:
       - backend
 
   mailhog:
     image: mailhog/mailhog:latest
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI    
+      - "1026:1025"  # SMTP
+      - "8026:8025"  # Web UI    
 
 volumes:
   db_data:

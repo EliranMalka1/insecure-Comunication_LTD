@@ -42,12 +42,12 @@ function Home() {
     <div className="hero">
       <div className="glass">
         <h1 className="brand">Communication_LTD</h1>
-        <p className="tagline">Secure communication. Seamless experience.</p>
+        <p className="tagline">Inecure communication. Seamless experience.</p>
         <div className="actions">
           <button className="btn primary" onClick={() => nav("/register")}>Create Account</button>
           <button className="btn ghost"   onClick={() => nav("/login")}>Sign In</button>
         </div>
-        <div className="footer-note"><span className="dot" /> Secure Version</div>
+        <div className="footer-note"><span className="dot" /> Insecure Version</div>
       </div>
       <div className="background-blur blur-1" />
       <div className="background-blur blur-2" />

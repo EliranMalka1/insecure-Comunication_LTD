@@ -1,13 +1,12 @@
+// internal/handlers/login.go
 package handlers
 
 import (
-	"crypto/subtle"
-	"database/sql"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
@@ -16,7 +15,7 @@ import (
 )
 
 type LoginRequest struct {
-	ID       string `json:"id"` // email or username
+	ID       string `json:"id"` // email or username (לא נעשה Trim כדי לא לפגוע ב-POC)
 	Password string `json:"password"`
 }
 
@@ -36,84 +35,45 @@ func Login(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		}
-		req.ID = strings.TrimSpace(req.ID)
-		if req.ID == "" || strings.TrimSpace(req.Password) == "" {
+
+		if req.ID == "" || len(req.Password) == 0 {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing fields"})
 		}
 
-		// --- Lockout window check (failed password attempts) ---
-		var failCount int
-		if err := db.Get(&failCount, `
-			SELECT COUNT(*) FROM login_attempts
-			WHERE username = ? AND success = 0
-			  AND attempt_time > (NOW() - INTERVAL ? MINUTE)
-		`, req.ID, pol.LockoutMinutes); err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db error"})
-		}
-		if pol.MaxLoginAttempts > 0 && failCount >= pol.MaxLoginAttempts {
-			return c.JSON(http.StatusTooManyRequests, map[string]string{"error": "account temporarily locked"})
+		var salt []byte
+		qSalt := fmt.Sprintf(
+			"SELECT salt FROM users WHERE email = '%s' OR username = '%s' LIMIT 1",
+			req.ID, req.ID,
+		)
+		if err := db.Get(&salt, qSalt); err != nil {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials1"})
 		}
 
-		// --- Fetch user by email OR username ---
+		hexHMAC, err := services.HashPasswordHMACHex(req.Password, salt)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash error"})
+		}
+
 		var u userRow
-		err := db.Get(&u, `
-			SELECT id, username, email, password_hmac, salt, is_active, is_verified
-			FROM users
-			WHERE email = ? OR username = ?
-			LIMIT 1
-		`, req.ID, req.ID)
-
-		knownUser := (err == nil)
-		userIDForLog := sql.NullInt64{}
-		if knownUser {
-			userIDForLog.Valid = true
-			userIDForLog.Int64 = u.ID
-		}
-
-		// --- Constant-time style check (compute hash whether user exists or not) ---
-		var computed string
-		if knownUser {
-			if h, e := services.HashPasswordHMACHex(req.Password, u.Salt); e == nil {
-				computed = h
-			}
-		} else {
-			// dummy work to keep timing similar
-			dummySalt := make([]byte, 16)
-			_, _ = services.HashPasswordHMACHex(req.Password, dummySalt)
-		}
-
-		ip := clientIP(c.Request())
-
-		// --- Check password + statuses ---
-		ok := false
-		if knownUser {
-			if subtle.ConstantTimeCompare([]byte(computed), []byte(u.PassHMAC)) == 1 &&
-				u.IsActive && u.IsVerified {
-				ok = true
-			}
-		}
-
-		if !ok {
-			// log failed attempt (password stage)
-			_, _ = db.Exec(`
-				INSERT INTO login_attempts (user_id, username, ip, success)
-				VALUES (?, ?, ?, 0)
-			`, userIDForLog, req.ID, ip)
+		qUser := fmt.Sprintf(
+			"SELECT id, username, email, password_hmac, salt, is_active, is_verified "+
+				"FROM users "+
+				"WHERE email = '%s' OR username = '%s' AND password_hmac = '%s' "+
+				"LIMIT 1",
+			req.ID, req.ID, hexHMAC,
+		)
+		err = db.Get(&u, qUser)
+		if err != nil || !u.IsActive || !u.IsVerified {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		}
-
-		// =============== 2FA REQUIRED (Email OTP) ===============
-		// Step 1 success (password ok) -> do NOT issue cookie yet.
-		// Start an email OTP challenge and respond with mfa_required=true.
 
 		mailer, err := services.NewMailerFromEnv()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "mailer error"})
 		}
 
-		// read optional config from env, with safe defaults
-		ttl := 10   // minutes
-		maxAtt := 5 // attempts
+		ttl := 10
+		maxAtt := 5
 		if v := os.Getenv("MFA_OTP_TTL_MINUTES"); v != "" {
 			if n, e := strconv.Atoi(v); e == nil && n > 0 && n <= 60 {
 				ttl = n
@@ -124,16 +84,11 @@ func Login(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 				maxAtt = n
 			}
 		}
-
-		cfg := services.OTPConfig{
-			TTLMinutes:  ttl,
-			MaxAttempts: maxAtt,
-		}
+		cfg := services.OTPConfig{TTLMinutes: ttl, MaxAttempts: maxAtt}
 		if err := services.StartEmailOTP(db, mailer, u.ID, u.Email, cfg); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "otp start error"})
 		}
 
-		// Tell client to show OTP code screen (step 2)
 		return c.JSON(http.StatusOK, map[string]any{
 			"mfa_required": true,
 			"method":       "email_otp",

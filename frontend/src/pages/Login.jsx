@@ -1,3 +1,4 @@
+// INSECURE Login.jsx (for the vulnerable project)
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiLogin, apiLoginMFA, apiForgotPassword } from "../lib/api";
@@ -5,14 +6,12 @@ import { apiLogin, apiLoginMFA, apiForgotPassword } from "../lib/api";
 export default function Login() {
   const nav = useNavigate();
 
-  // Two states: "password" (default) and then "otp"
   const [step, setStep] = useState("password");
   const [form, setForm] = useState({ id: "", password: "", code: "" });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: "", text: "" });
   const [otpMeta, setOtpMeta] = useState({ expiresIn: 0, method: "" });
 
-  // Forgot password UI state
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -20,23 +19,19 @@ export default function Login() {
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const looksLikeEmail = (s) => s.includes("@") && s.includes(".");
-  const looksLikeUsername = (s) => /^[a-zA-Z0-9._-]{3,}$/.test(s);
-
+  // ===== INSECURE: disable any client-side validation on id/password =====
   const validatePasswordStep = () => {
-    if (!form.id.trim() || !form.password.trim()) return "Please fill in all required fields.";
-    const id = form.id.trim();
-    if (!(looksLikeEmail(id) || looksLikeUsername(id))) return "Enter a valid email or username.";
+    // allow empty/any format to reach server (intentionally vulnerable)
     return "";
   };
 
   const validateOTP = () => {
+    
     if (!form.code.trim()) return "Please enter the 6-digit code from your email.";
     if (!/^\d{6}$/.test(form.code.trim())) return "The code must be exactly 6 digits.";
     return "";
   };
 
-  // Step 1: Password
   const onSubmitPassword = async (e) => {
     e.preventDefault();
     setMsg({ type: "", text: "" });
@@ -46,12 +41,12 @@ export default function Login() {
 
     try {
       setLoading(true);
+      // ===== INSECURE: do NOT trim or sanitize id/password =====
       const data = await apiLogin({
-        id: form.id.trim(),
-        password: form.password,
+        id: form.id,           // <-- no trim()
+        password: form.password
       });
 
-      // If the server requires MFA - move to the code step
       if (data?.mfa_required) {
         setOtpMeta({ expiresIn: data.expires_in ?? 10, method: data.method ?? "email_otp" });
         setForm((f) => ({ ...f, code: "" }));
@@ -63,7 +58,6 @@ export default function Login() {
         return;
       }
 
-      // Otherwise (if in the future you allow login without 2FA)
       setMsg({ type: "success", text: "Logged in successfully." });
       setTimeout(() => nav("/dashboard"), 500);
     } catch (e) {
@@ -73,7 +67,6 @@ export default function Login() {
     }
   };
 
-  // Step 2:  Send OTP
   const onSubmitOTP = async (e) => {
     e.preventDefault();
     setMsg({ type: "", text: "" });
@@ -84,7 +77,7 @@ export default function Login() {
     try {
       setLoading(true);
       await apiLoginMFA({
-        id: form.id.trim(),
+        id: form.id,           // keep same id
         code: form.code.trim(),
       });
 
@@ -97,13 +90,13 @@ export default function Login() {
     }
   };
 
-  // Forgot Password submit
   const onSubmitForgot = async (e) => {
     e.preventDefault();
     setForgotMsg({ type: "", text: "" });
 
+    
     const email = forgotEmail.trim();
-    if (!email || !looksLikeEmail(email)) {
+    if (!email.includes("@")) {
       setForgotMsg({ type: "error", text: "Please enter a valid email address." });
       return;
     }
@@ -145,7 +138,7 @@ export default function Login() {
                 type="text"
                 value={form.id}
                 onChange={onChange}
-                placeholder="you@example.com or yourname"
+                placeholder="(insecure) put anything here"
                 className="input"
                 autoComplete="username"
               />
@@ -153,15 +146,14 @@ export default function Login() {
               <label style={{ display: "block", margin: "14px 0 6px" }}>Password</label>
               <input
                 name="password"
-                type="password"
+                type="text"  
                 value={form.password}
                 onChange={onChange}
-                placeholder="••••••••"
+                placeholder="(insecure) any string"
                 className="input"
                 autoComplete="current-password"
               />
 
-              {/* Forgot password toggle */}
               <div style={{ marginTop: 10 }}>
                 <button
                   type="button"
@@ -199,7 +191,6 @@ export default function Login() {
               </div>
             </form>
 
-            {/* Forgot password panel */}
             {showForgot && (
               <form onSubmit={onSubmitForgot} style={{ textAlign: "left", marginTop: 18 }}>
                 <hr style={{ opacity: 0.15, margin: "12px 0 16px" }} />
@@ -210,10 +201,10 @@ export default function Login() {
                 <label style={{ display: "block", marginBottom: 6 }}>Email</label>
                 <input
                   name="forgotEmail"
-                  type="email"
+                  type="text"  
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="anything@goes"
                   className="input"
                   autoComplete="email"
                 />
@@ -248,7 +239,7 @@ export default function Login() {
               name="code"
               type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
+              // INSECURE note: we still keep 6-digit, it's fine for the SQLi demo
               minLength={6}
               maxLength={6}
               value={form.code}

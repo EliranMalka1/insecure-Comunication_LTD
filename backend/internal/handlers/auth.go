@@ -84,7 +84,7 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 		}
 		base := os.Getenv("BACKEND_PUBLIC_URL")
 		if base == "" {
-			base = "http://localhost:8080"
+			base = "http://localhost:8081"
 		}
 		link := fmt.Sprintf("%s/api/verify-email?token=%s", strings.TrimRight(base, "/"), vTok.Raw)
 

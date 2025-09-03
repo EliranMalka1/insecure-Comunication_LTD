@@ -3,7 +3,7 @@ CREATE DATABASE IF NOT EXISTS secure_comm
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE secure_comm;
+USE insecure_comm;
 
 -- === Tables ===
 
@@ -104,10 +104,5 @@ CREATE TABLE IF NOT EXISTS password_change_requests (
 
 
 -- === Demo data (for development only!) ===
-INSERT INTO users (username, email, password_hmac, salt)
-VALUES ('admin', 'admin@example.com',
-        REPEAT('a',64),
-        UNHEX('00112233445566778899AABBCCDDEEFF'));
-
 INSERT INTO customers (name, email, phone, notes)
 VALUES ('First Customer', 'customer1@example.com', '050-1234567', 'Demo notes');
