@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"strconv"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
@@ -15,8 +14,8 @@ import (
 )
 
 type LoginRequest struct {
-	ID       string `json:"id"` // email or username (לא נעשה Trim כדי לא לפגוע ב-POC)
-	Password string `json:"password"`
+	ID       string `json:"id"`       // email or username (no Trim to not break PoC)
+	Password string `json:"password"` // sent as-is
 }
 
 type userRow struct {
@@ -29,30 +28,34 @@ type userRow struct {
 	IsVerified bool   `db:"is_verified"`
 }
 
-func Login(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
+func Login(db *sqlx.DB, _ services.PasswordPolicy) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var req LoginRequest
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		}
-
 		if req.ID == "" || len(req.Password) == 0 {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing fields"})
 		}
 
+		// ---- INSECURE #1: fetch salt via string concatenation (SQLi possible)
 		var salt []byte
 		qSalt := fmt.Sprintf(
 			"SELECT salt FROM users WHERE email = '%s' OR username = '%s' LIMIT 1",
 			req.ID, req.ID,
 		)
 		if err := db.Get(&salt, qSalt); err != nil {
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials1"})
+			// generic message (matches your UI expectation)
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		}
 
+		// legit-looking HMAC calc (still allows SQLi bypass later)
 		hexHMAC, err := services.HashPasswordHMACHex(req.Password, salt)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash error"})
 		}
+
+		// ---- INSECURE #2: logic/precedence bug + string concat (SQLi possible)
 
 		var u userRow
 		qUser := fmt.Sprintf(
@@ -62,38 +65,28 @@ func Login(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 				"LIMIT 1",
 			req.ID, req.ID, hexHMAC,
 		)
-		err = db.Get(&u, qUser)
-		if err != nil || !u.IsActive || !u.IsVerified {
+		if err := db.Get(&u, qUser); err != nil || !u.IsActive || !u.IsVerified {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		}
 
-		mailer, err := services.NewMailerFromEnv()
+		// ===== NO MFA (vulnerable): issue JWT cookie immediately =====
+		token, err := services.CreateJWT(u.ID, u.Username, 24*time.Hour)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "mailer error"})
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token error"})
 		}
 
-		ttl := 10
-		maxAtt := 5
-		if v := os.Getenv("MFA_OTP_TTL_MINUTES"); v != "" {
-			if n, e := strconv.Atoi(v); e == nil && n > 0 && n <= 60 {
-				ttl = n
-			}
+		cookie := &http.Cookie{
+			Name:     services.CookieName,
+			Value:    token,
+			Path:     "/",
+			Expires:  time.Now().Add(24 * time.Hour),
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			Secure:   false,
 		}
-		if v := os.Getenv("MFA_OTP_MAX_ATTEMPTS"); v != "" {
-			if n, e := strconv.Atoi(v); e == nil && n >= 1 && n <= 10 {
-				maxAtt = n
-			}
-		}
-		cfg := services.OTPConfig{TTLMinutes: ttl, MaxAttempts: maxAtt}
-		if err := services.StartEmailOTP(db, mailer, u.ID, u.Email, cfg); err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "otp start error"})
-		}
+		c.SetCookie(cookie)
 
-		return c.JSON(http.StatusOK, map[string]any{
-			"mfa_required": true,
-			"method":       "email_otp",
-			"expires_in":   ttl,
-		})
+		return c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	}
 }
 
