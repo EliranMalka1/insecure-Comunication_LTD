@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx (גרסת החיפוש הפגיעה – בלי paging)
+// src/pages/Dashboard.jsx (vulnerable search version - no paging)
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiMe, apiLogout, apiSearchCustomers } from "../lib/api";
@@ -22,7 +22,7 @@ export default function Dashboard() {
   const [me, setMe] = useState(null);
   const [loadingMe, setLoadingMe] = useState(true);
 
-  // search (פשוט)
+  // search (simple)
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 300);
   const [rows, setRows] = useState([]);
@@ -47,7 +47,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (loadingMe) return;
 
-    const term = debouncedQ; // שים לב: בלי trim כדי “לשמר” את POC אם תרצה
+    const term = debouncedQ; // Note: no trim to "preserve" the POC if you want
     if (!term || term.length < 2) {
       setRows([]);
       setSearchErr("");
@@ -59,7 +59,7 @@ export default function Dashboard() {
       setLoadingSearch(true);
       setSearchErr("");
       try {
-        const data = await apiSearchCustomers({ q: term }); // ⬅ שולח רק q
+        const data = await apiSearchCustomers({ q: term }); // ⬅ sends only q
         setRows(Array.isArray(data.items) ? data.items : []);
       } catch (err) {
         setRows([]);
