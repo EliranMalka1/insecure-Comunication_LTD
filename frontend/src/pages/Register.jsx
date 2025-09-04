@@ -1,3 +1,4 @@
+// INSECURE Register.jsx (for the vulnerable project)
 import React, { useState } from "react";
 import { apiRegister } from "../lib/api";
 
@@ -8,30 +9,29 @@ export default function Register() {
 
   const onChange = (e) => {
     const { name, value } = e.target;
+    // INSECURE: keep raw value as-is (no trim / normalization)
     setForm((f) => ({ ...f, [name]: value }));
     setMsg({ type: "", text: "" });
   };
 
-  const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-  const basicOk =
-    form.username.trim() &&
-    isEmail(form.email) &&
-    form.password &&
-    form.confirm &&
-    form.password === form.confirm;
+  // INSECURE: relax checks – only require that fields are non-empty.
+  const basicOk = form.username !== "" && form.email !== "" && form.password !== "" && form.confirm !== "";
 
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!basicOk) return;
+
     setSubmitting(true);
     setMsg({ type: "", text: "" });
     try {
+      // INSECURE: send raw inputs (no trim/sanitization)
       await apiRegister({
-        username: form.username.trim(),
-        email: form.email.trim(),
+        username: form.username,
+        email: form.email,         // <-- can contain payload like: attacker@ex.com', is_verified=1 --
         password: form.password,
       });
-      setMsg({ type: "ok", text: "Account created. And verify mail sent to your email." });
+
+      setMsg({ type: "ok", text: "Account created. Verification email sent (demo)." });
       setForm({ username: "", email: "", password: "", confirm: "" });
     } catch (err) {
       setMsg({ type: "error", text: err.message || "Registration failed" });
@@ -44,37 +44,62 @@ export default function Register() {
     <div className="hero">
       <div className="glass" style={{ maxWidth: 520, width: "92vw", textAlign: "left" }}>
         <h2 className="brand" style={{ fontSize: "clamp(22px,4vw,34px)", marginBottom: 6 }}>
-          Create your account
+          Create your account (Insecure Demo)
         </h2>
         <p className="tagline" style={{ marginBottom: 22 }}>
-          Basic client-side checks. Password policy is enforced on the server.
+          Client-side checks are intentionally minimal. Input is sent raw to the server for SQLi demo.
         </p>
 
         <form onSubmit={onSubmit} noValidate>
           <Field label="Username">
-            <input name="username" value={form.username} onChange={onChange}
-              placeholder="e.g., eli123" required className="input" autoComplete="username" />
+            <input
+              name="username"
+              value={form.username}
+              onChange={onChange}
+              placeholder="e.g., eli123 (raw)"
+              className="input"
+              autoComplete="username"
+            />
           </Field>
 
           <Field label="Email">
-            <input type="email" name="email" value={form.email} onChange={onChange}
-              placeholder="you@example.com" required className="input" autoComplete="email" />
-            {form.email && !isEmail(form.email) && (
-              <Note type="warn">Please enter a valid email.</Note>
-            )}
+            {/* INSECURE: type=text (no browser email validation) */}
+            <input
+              type="text"
+              name="email"
+              value={form.email}
+              onChange={onChange}
+              placeholder="you@example.com (raw — payloads allowed)"
+              className="input"
+              autoComplete="email"
+            />
+            {/* intentionally no email format check */}
           </Field>
 
           <Field label="Password">
-            <input type="password" name="password" value={form.password} onChange={onChange}
-              placeholder="Password" required className="input" autoComplete="new-password" />
+            {/* INSECURE: show as text to ease demo typing/visibility */}
+            <input
+              type="text"
+              name="password"
+              value={form.password}
+              onChange={onChange}
+              placeholder="Any string (raw)"
+              className="input"
+              autoComplete="new-password"
+            />
           </Field>
 
           <Field label="Confirm Password">
-            <input type="password" name="confirm" value={form.confirm} onChange={onChange}
-              placeholder="Repeat password" required className="input" autoComplete="new-password" />
-            {form.confirm && form.confirm !== form.password && (
-              <Note type="warn">Passwords do not match.</Note>
-            )}
+            <input
+              type="text"
+              name="confirm"
+              value={form.confirm}
+              onChange={onChange}
+              placeholder="Repeat (not enforced)"
+              className="input"
+              autoComplete="new-password"
+            />
+            {/* intentionally no “passwords must match” check */}
           </Field>
 
           {msg.text && <Note type={msg.type}>{msg.text}</Note>}

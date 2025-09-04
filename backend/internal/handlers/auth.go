@@ -25,27 +25,25 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		}
-		req.Username = strings.TrimSpace(req.Username)
-		req.Email = strings.TrimSpace(req.Email)
 
+		// INSECURE: No Trim/No validation - to allow POC of SQLi
 		if req.Username == "" || req.Email == "" || req.Password == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing fields"})
 		}
-		if !looksLikeEmail(req.Email) {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid email"})
-		}
-		if err := services.ValidatePassword(req.Password, pol); err != nil {
-			return c.JSON(http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
-		}
 
+		// *** Secure: Parametric check for user/email existence to avoid failure before the vulnerable INSERT ***
 		var exists int
-		if err := db.Get(&exists, `SELECT COUNT(*) FROM users WHERE username = ? OR email = ?`, req.Username, req.Email); err != nil {
+		if err := db.Get(&exists,
+			"SELECT COUNT(*) FROM users WHERE username = ? OR email = ?",
+			req.Username, req.Email,
+		); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db error"})
 		}
 		if exists > 0 {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "username or email already exists"})
 		}
 
+		// Prepare salt and hash (it looks "legitimate" to the eye, but the INSERT below will be vulnerable)
 		salt, err := services.GenerateSalt16()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "salt error"})
@@ -55,29 +53,39 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash error"})
 		}
 
-		res, err := db.Exec(`
-			INSERT INTO users (username, email, password_hmac, salt, is_verified)
-			VALUES (?, ?, ?, ?, FALSE)`,
-			req.Username, req.Email, hashHex, salt)
+		// *** Insecure: INSERT with string interpolation -> can be injected through username/email ***
+		qInsert := fmt.Sprintf(
+			"INSERT INTO users SET "+
+				"username='%s', "+
+				"email='%s', "+
+				"password_hmac='%s', "+
+				"salt=UNHEX('%x'), "+
+				"is_active=1, "+
+				"is_verified=0",
+			req.Username, req.Email, hashHex, salt,
+		)
+		c.Logger().Printf("qInsert => %s\n", qInsert)
+
+		res, err := db.Exec(qInsert)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "insert error"})
+			// DEBUG ONLY:
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "insert error: " + err.Error()})
 		}
+
 		uid, _ := res.LastInsertId()
 
-		// Create verification token and save to DB
+		// Create a verification token and send it by email (remains as in the secure version)
 		vTok, err := services.NewVerificationToken(24 * time.Hour)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token error"})
 		}
-		_, err = db.Exec(`
-			INSERT INTO email_verification_tokens (user_id, token_sha1, expires_at)
-			VALUES (?, ?, ?)`,
-			uid, vTok.SHA1Hex, vTok.ExpiresAt)
-		if err != nil {
+		if _, err := db.Exec(
+			"INSERT INTO email_verification_tokens (user_id, token_sha1, expires_at) VALUES (?, ?, ?)",
+			uid, vTok.SHA1Hex, vTok.ExpiresAt,
+		); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token save error"})
 		}
 
-		// Send email
 		mailer, err := services.NewMailerFromEnv()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "mailer error"})
@@ -107,7 +115,7 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 	}
 }
 
-// Basic email validation (client already does basic validation; this is server-side reinforcement)
+// Kept in case you want to use it sometime
 func looksLikeEmail(s string) bool {
 	return strings.Count(s, "@") == 1 && len(s) >= 6 && strings.Contains(s, ".")
 }
