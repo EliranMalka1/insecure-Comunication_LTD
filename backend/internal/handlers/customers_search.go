@@ -3,8 +3,8 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
-	"strings"
+
+	"fmt"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
@@ -21,65 +21,33 @@ type CustomerDTO struct {
 
 func SearchCustomers(db *sqlx.DB) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		// Read from query string (GET /api/customers/search?q=...&page=1&size=10)
-		q := strings.TrimSpace(c.QueryParam("q"))
-		pageStr := c.QueryParam("page")
-		sizeStr := c.QueryParam("size")
 
-		// defaults
-		page := 1
-		size := 10
+		q := c.QueryParam("q")
 
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-		if s, err := strconv.Atoi(sizeStr); err == nil {
-			if s < 1 {
-				size = 1
-			} else if s > 100 {
-				size = 100
-			} else {
-				size = s
-			}
-		}
-		offset := (page - 1) * size
-
-		if len([]rune(q)) < 2 {
-			return c.JSON(http.StatusOK, map[string]interface{}{
+		if len(q) == 0 {
+			return c.JSON(http.StatusOK, map[string]any{
 				"items": []CustomerDTO{},
-				"page":  page,
-				"size":  size,
 				"total": 0,
 			})
 		}
 
-		pat := "%" + q + "%"
-
-		// total count
-		var total int
-		if err := db.Get(&total, `
-			SELECT COUNT(*) FROM customers
-			WHERE name  LIKE ? OR email LIKE ? OR notes LIKE ?
-		`, pat, pat, pat); err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db error"})
-		}
-
-		var rows []CustomerDTO
-		if err := db.Select(&rows, `
+		// *** Insecure: SQLi-vulnerable query construction with string interpolation ***
+		query := fmt.Sprintf(`
 			SELECT id, name, email, phone, notes, created_at
 			FROM customers
-			WHERE name  LIKE ? OR email LIKE ? OR notes LIKE ?
+			WHERE name LIKE '%%%s%%'
 			ORDER BY created_at DESC
-			LIMIT ? OFFSET ?
-		`, pat, pat, pat, size, offset); err != nil {
+			LIMIT 50
+		`, q)
+
+		var rows []CustomerDTO
+		if err := db.Select(&rows, query); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db error"})
 		}
 
-		return c.JSON(http.StatusOK, map[string]interface{}{
+		return c.JSON(http.StatusOK, map[string]any{
 			"items": rows,
-			"page":  page,
-			"size":  size,
-			"total": total,
+			"q":     q,
 		})
 	}
 }

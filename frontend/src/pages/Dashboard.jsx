@@ -1,23 +1,17 @@
-// src/pages/Dashboard.jsx
+// src/pages/Dashboard.jsx (גרסת החיפוש הפגיעה – בלי paging)
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiMe, apiLogout, apiSearchCustomers } from "../lib/api";
 
 function Clock() {
   const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
   return <span className="clock">{now.toLocaleTimeString()}</span>;
 }
 
 function useDebounce(value, delay = 300) {
   const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
+  useEffect(() => { const t = setTimeout(() => setV(value), delay); return () => clearTimeout(t); }, [value, delay]);
   return v;
 }
 
@@ -28,17 +22,14 @@ export default function Dashboard() {
   const [me, setMe] = useState(null);
   const [loadingMe, setLoadingMe] = useState(true);
 
-  // search & paging
+  // search (פשוט)
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 300);
-  const [page, setPage] = useState(1);
-  const [size] = useState(10);
   const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [searchErr, setSearchErr] = useState("");
 
-  // load current user (guard)
+  // guard
   useEffect(() => {
     (async () => {
       try {
@@ -52,15 +43,13 @@ export default function Dashboard() {
     })();
   }, [nav]);
 
-  // search only when input >= 2 chars
+  // search only when >= 2 chars
   useEffect(() => {
     if (loadingMe) return;
 
-    const term = debouncedQ.trim();
-    if (term.length < 2) {
-      // clear view if query too short
+    const term = debouncedQ; // שים לב: בלי trim כדי “לשמר” את POC אם תרצה
+    if (!term || term.length < 2) {
       setRows([]);
-      setTotal(0);
       setSearchErr("");
       setLoadingSearch(false);
       return;
@@ -70,18 +59,16 @@ export default function Dashboard() {
       setLoadingSearch(true);
       setSearchErr("");
       try {
-        const data = await apiSearchCustomers({ q: term, page, size });
+        const data = await apiSearchCustomers({ q: term }); // ⬅ שולח רק q
         setRows(Array.isArray(data.items) ? data.items : []);
-        setTotal(typeof data.total === "number" ? data.total : 0);
       } catch (err) {
         setRows([]);
-        setTotal(0);
         setSearchErr(err?.message || "Search failed");
       } finally {
         setLoadingSearch(false);
       }
     })();
-  }, [debouncedQ, page, size, loadingMe]);
+  }, [debouncedQ, loadingMe]);
 
   const onLogout = async () => {
     try { await apiLogout(); } catch {}
@@ -98,8 +85,7 @@ export default function Dashboard() {
     );
   }
 
-  const pages = Math.max(1, Math.ceil(total / size));
-  const showHelper = q.trim().length < 2;
+  const showHelper = !q || q.length < 2;
 
   return (
     <div>
@@ -124,26 +110,20 @@ export default function Dashboard() {
           <div style={{ display: "flex", gap: 12, margin: "12px 0 18px" }}>
             <input
               className="input"
-              placeholder="Search customers by name, email, or notes… (min. 2 chars)"
+              placeholder="Search customers by name… (min. 2 chars)"
               value={q}
-              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              onChange={(e) => setQ(e.target.value)}
               style={{ flex: 1 }}
             />
           </div>
 
           {/* Helper / Error */}
-          {searchErr && (
-            <div className="note" style={{ marginBottom: 12 }}>
-              {searchErr}
-            </div>
-          )}
+          {searchErr && <div className="note" style={{ marginBottom: 12 }}>{searchErr}</div>}
           {showHelper && !searchErr && (
-            <div className="note" style={{ marginBottom: 12 }}>
-              Type at least 2 characters to search.
-            </div>
+            <div className="note" style={{ marginBottom: 12 }}>Type at least 2 characters to search.</div>
           )}
 
-          {/* Results table */}
+          {/* Results */}
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
@@ -169,7 +149,6 @@ export default function Dashboard() {
                     <td style={td}>{r.name}</td>
                     <td style={td}>{r.email}</td>
                     <td style={td}>{r.phone || "-"}</td>
-                    {}
                     <td style={td} title={r.notes || ""}>{r.notes || "-"}</td>
                     <td style={td}>{new Date(r.created_at).toLocaleString()}</td>
                   </tr>
@@ -178,14 +157,7 @@ export default function Dashboard() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {!showHelper && (
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-              <button className="btn ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</button>
-              <div style={{ alignSelf: "center", opacity: .8 }}>Page {page} / {pages}</div>
-              <button className="btn ghost" disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Next</button>
-            </div>
-          )}
+          {}
         </div>
       </main>
     </div>
