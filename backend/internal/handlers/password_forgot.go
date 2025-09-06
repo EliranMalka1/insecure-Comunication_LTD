@@ -65,7 +65,7 @@ func PasswordForgot(db *sqlx.DB) echo.HandlerFunc {
 		}
 		base := os.Getenv("BACKEND_PUBLIC_URL")
 		if base == "" {
-			base = "http://localhost:8080"
+			base = "http://localhost:8081"
 		}
 		// Link to backend that redirects to frontend (see PasswordResetLanding)
 		link := fmt.Sprintf("%s/api/password/reset?token=%s", strings.TrimRight(base, "/"), raw)

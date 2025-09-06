@@ -50,7 +50,7 @@ export async function apiRegister(payload) {
   return data;
 }
 
-// Step 1: password login (server will return { mfa_required: true } if 2FA is on)
+// Step 1: submit username+password
 export async function apiLogin(payload) {
   return post("/api/login", payload);
 }
@@ -60,7 +60,7 @@ export async function apiLoginMFA({ id, code }) {
   return post("/api/login/mfa", { id, code });
 }
 
-// Optional: logout + whoami
+
 export async function apiLogout() {
   return post("/api/logout", {}, { withCredentials: true });
 }
@@ -69,7 +69,7 @@ export async function apiMe() {
 }
 
 export async function apiForgotPassword(email) {
-  // No need for cookies
+  
   const res = await fetch(`${BASE_URL}/api/password/forgot`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -94,7 +94,7 @@ export async function apiResetPassword({ token, newPassword }) {
 }
 
 export async function apiPasswordChange({ oldPassword, newPassword }) {
-  // requires valid session cookie
+  
   const res = await fetch(`${BASE_URL}/api/password/change`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

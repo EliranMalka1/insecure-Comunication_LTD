@@ -22,13 +22,13 @@ type resetReq struct {
 }
 
 // GET /api/password/reset?token=...
-// Redirects to frontend: http://localhost:3000/reset?token=...
+// Redirects to frontend: http://localhost:3001/reset?token=...
 func PasswordResetLanding() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		raw := c.QueryParam("token")
 		fe := os.Getenv("FRONTEND_PUBLIC_URL")
 		if fe == "" {
-			fe = "http://localhost:3000"
+			fe = "http://localhost:3001"
 		}
 		u := fe + "/reset?token=" + url.QueryEscape(raw)
 		return c.Redirect(http.StatusTemporaryRedirect, u)
