@@ -149,7 +149,16 @@ export default function Dashboard() {
                     <td style={td}>{r.name}</td>
                     <td style={td}>{r.email}</td>
                     <td style={td}>{r.phone || "-"}</td>
-                    <td style={td} title={r.notes || ""}>{r.notes || "-"}</td>
+                    <td style={td}>
+                      {r.notes
+                        ? <span
+        
+                          dangerouslySetInnerHTML={{ __html: r.notes }}
+                          style={{ display: "inline-block", maxWidth: 420, whiteSpace: "normal", overflowWrap: "anywhere" }}
+                          />
+                      : "-"}
+                    </td>
+
                     <td style={td}>{new Date(r.created_at).toLocaleString()}</td>
                   </tr>
                 ))}

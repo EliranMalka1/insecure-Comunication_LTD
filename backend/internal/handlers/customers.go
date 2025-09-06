@@ -1,4 +1,4 @@
-// internal/handlers/customers_create.go (vulnerable)
+// internal/handlers/customers_create.go (vulnerable demo)
 package handlers
 
 import (
@@ -27,28 +27,35 @@ func CreateCustomer(db *sqlx.DB) echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "name and email are required"})
 		}
 
-		q := fmt.Sprintf(
-			"INSERT INTO customers SET "+
-				"name='%s', "+
-				"email='%s', "+
-				"phone='%s', "+
-				"notes='%s'",
+		qInsert := fmt.Sprintf(
+			"INSERT INTO customers SET name='%s', email='%s', phone='%s', notes='%s'",
 			req.Name, req.Email, req.Phone, req.Notes,
 		)
+		log.Printf("INSERT query:\n%s\n", qInsert)
 
-		log.Printf("INSERT query:\n%s\n", q)
-
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(qInsert); err != nil {
 			log.Printf("INSERT error: %v", err)
-
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": "insert error: " + err.Error(),
-				"q":     q,
+				"q":     qInsert,
 			})
+		}
+
+		qSelect := fmt.Sprintf(
+			"SELECT id, name, email, phone, notes, created_at "+
+				"FROM customers WHERE email = '%s' ORDER BY id DESC LIMIT 1",
+			req.Email,
+		)
+		log.Printf("SELECT-after-insert query:\n%s\n", qSelect)
+
+		var row CustomerDTO
+		if err := db.Get(&row, qSelect); err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db error"})
 		}
 
 		return c.JSON(http.StatusOK, map[string]any{
 			"message": "customer created",
+			"item":    row,
 		})
 	}
 }
