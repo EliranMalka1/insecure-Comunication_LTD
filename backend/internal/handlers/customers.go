@@ -43,14 +43,18 @@ func CreateCustomer(db *sqlx.DB) echo.HandlerFunc {
 
 		qSelect := fmt.Sprintf(
 			"SELECT id, name, email, phone, notes, created_at "+
-				"FROM customers WHERE email = '%s' ORDER BY id DESC LIMIT 1",
-			req.Email,
+				"FROM customers WHERE name = '%s' ORDER BY id DESC LIMIT 1",
+			req.Name,
 		)
 		log.Printf("SELECT-after-insert query:\n%s\n", qSelect)
 
 		var row CustomerDTO
 		if err := db.Get(&row, qSelect); err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db error"})
+			log.Printf("SELECT error: %v", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "db error: " + err.Error(),
+				"q":     qSelect,
+			})
 		}
 
 		return c.JSON(http.StatusOK, map[string]any{
