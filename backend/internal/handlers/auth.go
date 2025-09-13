@@ -26,12 +26,12 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		}
 
-		// INSECURE: No Trim/No validation - to allow POC of SQLi
+		// INSECURE: intentionally no Trim/no strict validation to keep POC behavior
 		if req.Username == "" || req.Email == "" || req.Password == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing fields"})
 		}
 
-		// *** Secure: Parametric check for user/email existence to avoid failure before the vulnerable INSERT ***
+		// Keep this parametric existence check (doesn't change the intended insecure INSERT below)
 		var exists int
 		if err := db.Get(&exists,
 			"SELECT COUNT(*) FROM users WHERE username = ? OR email = ?",
@@ -43,7 +43,7 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "username or email already exists"})
 		}
 
-		// Prepare salt and hash (it looks "legitimate" to the eye, but the INSERT below will be vulnerable)
+		// Prepare salt + HMAC (legit-looking part kept)
 		salt, err := services.GenerateSalt16()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "salt error"})
@@ -53,28 +53,34 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash error"})
 		}
 
-		// *** Insecure: INSERT with string interpolation -> can be injected through username/email ***
+		// *** NEW: compute salt-independent fingerprint and store it too ***
+		fpHex, err := services.HashPasswordFingerprintHex(req.Password)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fingerprint error"})
+		}
+
+		// INSECURE: string interpolation on purpose (do NOT fix)
 		qInsert := fmt.Sprintf(
 			"INSERT INTO users SET "+
 				"username='%s', "+
 				"email='%s', "+
 				"password_hmac='%s', "+
 				"salt=UNHEX('%x'), "+
+				"password_fp='%s', "+ // <-- ensure fingerprint is saved
 				"is_active=1, "+
 				"is_verified=0",
-			req.Username, req.Email, hashHex, salt,
+			req.Username, req.Email, hashHex, salt, fpHex,
 		)
 		c.Logger().Printf("qInsert => %s\n", qInsert)
 
 		res, err := db.Exec(qInsert)
 		if err != nil {
-			// DEBUG ONLY:
+			// DEBUG ONLY (keep behavior as you had)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "insert error: " + err.Error()})
 		}
-
 		uid, _ := res.LastInsertId()
 
-		// Create a verification token and send it by email (remains as in the secure version)
+		// Email verification token (unchanged)
 		vTok, err := services.NewVerificationToken(24 * time.Hour)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token error"})
@@ -86,6 +92,7 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token save error"})
 		}
 
+		// Send verification email (unchanged)
 		mailer, err := services.NewMailerFromEnv()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "mailer error"})
@@ -95,7 +102,6 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			base = "http://localhost:8081"
 		}
 		link := fmt.Sprintf("%s/api/verify-email?token=%s", strings.TrimRight(base, "/"), vTok.Raw)
-
 		html := fmt.Sprintf(`
 			<h2>Verify your email</h2>
 			<p>Hi %s, thanks for registering.</p>
@@ -104,7 +110,6 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			<p>If the button doesn't work, copy this URL:</p>
 			<p><code>%s</code></p>
 		`, req.Username, link, link)
-
 		if err := mailer.Send(req.Email, "Verify your email", html); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "send mail error"})
 		}
@@ -115,7 +120,7 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 	}
 }
 
-// Kept in case you want to use it sometime
+// kept for optional future use
 func looksLikeEmail(s string) bool {
 	return strings.Count(s, "@") == 1 && len(s) >= 6 && strings.Contains(s, ".")
 }
