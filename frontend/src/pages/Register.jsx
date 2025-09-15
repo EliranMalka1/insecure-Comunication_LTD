@@ -1,4 +1,4 @@
-// INSECURE Register.jsx (for the vulnerable project)
+
 import React, { useState } from "react";
 import { apiRegister } from "../lib/api";
 
@@ -9,12 +9,12 @@ export default function Register() {
 
   const onChange = (e) => {
     const { name, value } = e.target;
-    // INSECURE: keep raw value as-is (no trim / normalization)
+
     setForm((f) => ({ ...f, [name]: value }));
     setMsg({ type: "", text: "" });
   };
 
-  // INSECURE: relax checks – only require that fields are non-empty.
+
   const basicOk = form.username !== "" && form.email !== "" && form.password !== "" && form.confirm !== "";
 
   const onSubmit = async (e) => {
@@ -24,10 +24,10 @@ export default function Register() {
     setSubmitting(true);
     setMsg({ type: "", text: "" });
     try {
-      // INSECURE: send raw inputs (no trim/sanitization)
+      
       await apiRegister({
         username: form.username,
-        email: form.email,         // <-- can contain payload like: attacker@ex.com', is_verified=1 --
+        email: form.email,         
         password: form.password,
       });
 
@@ -63,7 +63,7 @@ export default function Register() {
           </Field>
 
           <Field label="Email">
-            {/* INSECURE: type=text (no browser email validation) */}
+            {}
             <input
               type="text"
               name="email"
@@ -77,7 +77,7 @@ export default function Register() {
           </Field>
 
           <Field label="Password">
-            {/* INSECURE: show as text to ease demo typing/visibility */}
+            {/* show as text to ease demo typing/visibility */}
             <input
               type="text"
               name="password"

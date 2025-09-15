@@ -31,7 +31,6 @@ func SearchCustomers(db *sqlx.DB) echo.HandlerFunc {
 			})
 		}
 
-		// *** Insecure: SQLi-vulnerable query construction with string interpolation ***
 		query := fmt.Sprintf(`
 			SELECT id, name, email, phone, notes, created_at
 			FROM customers

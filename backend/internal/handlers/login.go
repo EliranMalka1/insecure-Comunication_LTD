@@ -14,8 +14,8 @@ import (
 )
 
 type LoginRequest struct {
-	ID       string `json:"id"`       // email or username (no Trim to not break PoC)
-	Password string `json:"password"` // sent as-is
+	ID       string `json:"id"`
+	Password string `json:"password"`
 }
 
 type userRow struct {
@@ -38,7 +38,6 @@ func Login(db *sqlx.DB, _ services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing fields"})
 		}
 
-		// ---- INSECURE #1: fetch salt via string concatenation (SQLi possible)
 		var salt []byte
 		qSalt := fmt.Sprintf(
 			"SELECT salt FROM users WHERE email = '%s' OR username = '%s' LIMIT 1",
@@ -55,8 +54,6 @@ func Login(db *sqlx.DB, _ services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash error"})
 		}
 
-		// ---- INSECURE #2: logic/precedence bug + string concat (SQLi possible)
-
 		var u userRow
 		qUser := fmt.Sprintf(
 			"SELECT id, username, email, password_hmac, salt, is_active, is_verified "+
@@ -69,7 +66,6 @@ func Login(db *sqlx.DB, _ services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		}
 
-		// ===== NO MFA (vulnerable): issue JWT cookie immediately =====
 		token, err := services.CreateJWT(u.ID, u.Username, 24*time.Hour)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token error"})

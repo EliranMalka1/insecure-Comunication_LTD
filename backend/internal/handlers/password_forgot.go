@@ -28,23 +28,20 @@ func PasswordForgot(db *sqlx.DB) echo.HandlerFunc {
 		}
 		email := strings.TrimSpace(req.Email)
 		if email == "" || !strings.Contains(email, "@") {
-			// Generic response
+
 			return c.JSON(http.StatusOK, map[string]string{"message": "If this email exists, a reset link has been sent."})
 		}
 
-		// Is there such a user and are they verified?
 		var userID int64
 		err := db.Get(&userID, `SELECT id FROM users WHERE email = ? AND is_verified = TRUE LIMIT 1`, email)
 		if err != nil {
-			// Do not reveal if not found — return generic response
+
 			return c.JSON(http.StatusOK, map[string]string{"message": "If this email exists, a reset link has been sent."})
 		}
 
-		// Invalidate old open tokens (not required, but nice to have)
 		_, _ = db.Exec(`UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL`, userID)
 
-		// Create a new token (raw) and store SHA-1
-		raw, err := services.NewRandomBase64URL(32) // 32 bytes → ~43 chars
+		raw, err := services.NewRandomBase64URL(32)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token error"})
 		}
@@ -67,7 +64,7 @@ func PasswordForgot(db *sqlx.DB) echo.HandlerFunc {
 		if base == "" {
 			base = "http://localhost:8081"
 		}
-		// Link to backend that redirects to frontend (see PasswordResetLanding)
+
 		link := fmt.Sprintf("%s/api/password/reset?token=%s", strings.TrimRight(base, "/"), raw)
 
 		html := fmt.Sprintf(`
@@ -81,7 +78,6 @@ func PasswordForgot(db *sqlx.DB) echo.HandlerFunc {
 
 		_ = mailer.Send(email, "Reset your password", html)
 
-		// Always generic
 		return c.JSON(http.StatusOK, map[string]string{"message": "If this email exists, a reset link has been sent."})
 	}
 }

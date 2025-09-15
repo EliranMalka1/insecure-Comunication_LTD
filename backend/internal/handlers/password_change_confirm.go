@@ -20,7 +20,6 @@ func ChangePasswordConfirm(db *sqlx.DB, pol services.PasswordPolicy) echo.Handle
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing token"})
 		}
 
-		// token SHA-1 per project spec
 		sum := sha1.Sum([]byte(raw))
 		tokenSHA1 := hex.EncodeToString(sum[:])
 
@@ -28,12 +27,11 @@ func ChangePasswordConfirm(db *sqlx.DB, pol services.PasswordPolicy) echo.Handle
 			userID  int64
 			newHex  string
 			newSalt []byte
-			newFP   string // requires password_change_requests.new_password_fp in schema!
+			newFP   string
 			expires time.Time
 			usedAt  sql.NullTime
 		)
 
-		// load pending request
 		err := db.QueryRowx(`
 			SELECT user_id, new_password_hmac, new_salt, new_password_fp, expires_at, used_at
 			FROM password_change_requests
@@ -58,7 +56,6 @@ func ChangePasswordConfirm(db *sqlx.DB, pol services.PasswordPolicy) echo.Handle
 		}
 		defer tx.Rollback()
 
-		// push CURRENT to history (include fp + salt for fallback)
 		if _, err := tx.Exec(`
 			INSERT INTO password_history (user_id, password_hmac, password_fp, salt)
 			SELECT id, password_hmac, password_fp, salt
@@ -68,7 +65,6 @@ func ChangePasswordConfirm(db *sqlx.DB, pol services.PasswordPolicy) echo.Handle
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "history insert error"})
 		}
 
-		// update user with NEW (hash + salt + fp)
 		if _, err := tx.Exec(`
 			UPDATE users
 			SET password_hmac = ?, salt = ?, password_fp = ?
@@ -77,8 +73,7 @@ func ChangePasswordConfirm(db *sqlx.DB, pol services.PasswordPolicy) echo.Handle
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "update user error"})
 		}
 
-		// trim to last N
-		nHistory := pol.History // <<< HISTORY COUNT HERE
+		nHistory := pol.History
 		if nHistory > 0 {
 			if _, err := tx.Exec(`
 				DELETE FROM password_history
@@ -97,7 +92,6 @@ func ChangePasswordConfirm(db *sqlx.DB, pol services.PasswordPolicy) echo.Handle
 			}
 		}
 
-		// mark token used
 		if _, err := tx.Exec(`
 			UPDATE password_change_requests
 			SET used_at = NOW()
@@ -119,7 +113,7 @@ func ChangePasswordConfirm(db *sqlx.DB, pol services.PasswordPolicy) echo.Handle
 			Expires:  time.Unix(0, 0),
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
-			Secure:   false, // set true in HTTPS prod
+			Secure:   false,
 		})
 
 		return c.HTML(http.StatusOK, verificationPage(true,

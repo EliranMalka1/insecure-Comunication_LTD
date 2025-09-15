@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS password_change_requests (
   user_id            INT NOT NULL,
   new_password_hmac  CHAR(64) NOT NULL,   -- HMAC-SHA256 hex of the new password
   new_salt           VARBINARY(16) NOT NULL,
-  new_password_fp    VARCHAR(64) NOT NULL,  -- <- REQUIRED for ChangePasswordConfirm
+  new_password_fp    VARCHAR(64) NOT NULL,  --  REQUIRED for ChangePasswordConfirm
   token_sha1         CHAR(40) NOT NULL,   -- SHA-1 hex of confirmation token
   expires_at         DATETIME NOT NULL,
   used_at            DATETIME NULL,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS password_change_requests (
   INDEX idx_pcr_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- === Demo data (for development only!) ===
+
 
 INSERT INTO customers (name, email, phone, notes)
 VALUES ('First Customer', 'customer1@example.com', '050-1234567', 'Demo notes');

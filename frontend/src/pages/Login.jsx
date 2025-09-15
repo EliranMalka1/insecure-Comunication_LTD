@@ -1,4 +1,4 @@
-// INSECURE Login.jsx (vulnerable build – no MFA, minimal client validation)
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiLogin, apiForgotPassword } from "../lib/api";
@@ -17,7 +17,7 @@ export default function Login() {
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  // INSECURE: allow any input to reach server (no trim/sanitize/format checks)
+
   const onSubmitPassword = async (e) => {
     e.preventDefault();
     setMsg({ type: "", text: "" });
@@ -25,11 +25,11 @@ export default function Login() {
     try {
       setLoading(true);
       const data = await apiLogin({
-        id: form.id,          // intentionally no trim()
+        id: form.id,          
         password: form.password,
       });
 
-      // Vulnerable build: any 200 => logged in (server sets cookie)
+      
       setMsg({ type: "success", text: data?.message || "Logged in." });
       setTimeout(() => nav("/dashboard"), 300);
     } catch (e) {
@@ -43,7 +43,7 @@ export default function Login() {
     e.preventDefault();
     setForgotMsg({ type: "", text: "" });
 
-    // still do a tiny check so UX isn't totally broken
+    
     const email = forgotEmail.trim();
     if (!email.includes("@")) {
       setForgotMsg({ type: "error", text: "Please enter a valid email address." });
@@ -85,7 +85,7 @@ export default function Login() {
           <label style={{ display: "block", margin: "14px 0 6px" }}>Password</label>
           <input
             name="password"
-            type="text"  // INSECURE: not password field (for demo)
+            type="text"  
             value={form.password}
             onChange={onChange}
             placeholder="(insecure) any string"

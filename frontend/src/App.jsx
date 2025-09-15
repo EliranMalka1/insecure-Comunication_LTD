@@ -10,7 +10,7 @@ import { apiMe } from "./lib/api";
 import CustomerNew from "./pages/CustomerNew";
 
 
-/** Home: If there is a session - automatically navigates to the dashboard; otherwise it displays the home page. */
+
 function Home() {
   const nav = useNavigate();
   const [checking, setChecking] = useState(true);
@@ -18,10 +18,10 @@ function Home() {
   useEffect(() => {
     (async () => {
       try {
-        await apiMe(); // There is a valid cookie/session
+        await apiMe(); 
         nav("/dashboard", { replace: true });
       } catch {
-        // Not connected - stay on the home page
+      
       } finally {
         setChecking(false);
       }
@@ -56,14 +56,14 @@ function Home() {
   );
 }
 
-/** Guard: Allows access to routes only if there is a valid session (cookie/JWT). */
+
 function RequireAuth() {
   const [state, setState] = useState({ checking: true, ok: false });
 
   useEffect(() => {
     (async () => {
       try {
-        await apiMe(); // 200 => connected
+        await apiMe(); // 200 = connected
         setState({ checking: false, ok: true });
       } catch {
         setState({ checking: false, ok: false });
@@ -83,14 +83,14 @@ function RequireAuth() {
   return state.ok ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
-/** Guard: Blocks Login/Register/Forgot/Reset pages if already logged in. */
+
 function PublicOnly() {
   const [state, setState] = useState({ checking: true, loggedIn: false });
 
   useEffect(() => {
     (async () => {
       try {
-        await apiMe(); // If successful - already connected
+        await apiMe(); 
         setState({ checking: false, loggedIn: true });
       } catch {
         setState({ checking: false, loggedIn: false });
@@ -98,7 +98,7 @@ function PublicOnly() {
     })();
   }, []);
 
-  if (state.checking) return null; // Minimal spinner - not mandatory to display
+  if (state.checking) return null; 
 
   return state.loggedIn ? <Navigate to="/dashboard" replace /> : <Outlet />;
 }

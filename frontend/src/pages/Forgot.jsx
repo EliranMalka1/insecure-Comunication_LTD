@@ -21,7 +21,7 @@ export default function Forgot() {
         text: "If this email exists, a reset link has been sent.",
       });
     } catch (e) {
-  // Even on error, return a generic message
+ 
       setMsg({
         type: "success",
         text: "If this email exists, a reset link has been sent.",

@@ -20,13 +20,12 @@ type ChangePasswordRequest struct {
 
 func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		// 0) User from context
+
 		uid, err := middlewarex.UserIDFromCtx(c)
 		if err != nil {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		}
 
-		// 1) Parse input
 		var req ChangePasswordRequest
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
@@ -35,12 +34,10 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing fields"})
 		}
 
-		// 2) Policy for NEW password
 		if err := services.ValidatePassword(req.NewPassword, pol); err != nil {
 			return c.JSON(http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 		}
 
-		// 3) Load current user secret material (+ email for notification)
 		var (
 			curHash string
 			curSalt []byte
@@ -59,7 +56,6 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db error"})
 		}
 
-		// 4) Verify old password
 		oldHex, err := services.HashPasswordHMACHex(req.OldPassword, curSalt)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash error"})
@@ -68,7 +64,6 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "old password is incorrect"})
 		}
 
-		// 5) Compute fingerprints (salt-independent)
 		oldFP, err := services.HashPasswordFingerprintHex(req.OldPassword)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fingerprint error"})
@@ -78,15 +73,13 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fingerprint error"})
 		}
 
-		// Block identical to current
 		if newFP == oldFP {
 			return c.JSON(http.StatusUnprocessableEntity, map[string]string{
 				"error": "new password must differ from current password",
 			})
 		}
 
-		// 6) History check (FP first; fallback to HMAC+salt when FP is missing)
-		nHistory := pol.History // <<< HISTORY COUNT HERE
+		nHistory := pol.History
 		if nHistory > 0 {
 			type histRow struct {
 				FP   sql.NullString `db:"password_fp"`
@@ -104,7 +97,7 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db error"})
 			}
 			for _, r := range rows {
-				// Prefer FP equality when available
+
 				if r.FP.Valid && r.FP.String != "" {
 					if r.FP.String == newFP {
 						return c.JSON(http.StatusUnprocessableEntity, map[string]string{
@@ -113,7 +106,7 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 					}
 					continue
 				}
-				// Fallback: if no FP, compare HMAC(new, stored salt) with stored HMAC
+
 				if len(r.Salt) > 0 && r.HMAC.Valid && r.HMAC.String != "" {
 					hx, err := services.HashPasswordHMACHex(req.NewPassword, r.Salt)
 					if err != nil {
@@ -128,7 +121,6 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			}
 		}
 
-		// 7) Prepare new salt+hash (only after passing checks)
 		newSalt, err := services.GenerateSalt16()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "salt error"})
@@ -138,14 +130,12 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash error"})
 		}
 
-		// 8) Tx: push current to history (including FP+salt), update users with new hash+salt+FP, trim history
 		tx, err := db.Beginx()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "tx error"})
 		}
 		defer tx.Rollback()
 
-		// Save the *old/current* password to history (with FP + salt!)
 		if _, err := tx.Exec(`
 			INSERT INTO password_history (user_id, password_hmac, password_fp, salt)
 			VALUES (?, ?, ?, ?)
@@ -153,7 +143,6 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "history insert error"})
 		}
 
-		// Update users with NEW password material (hash + salt + FP)
 		if _, err := tx.Exec(`
 			UPDATE users
 			SET password_hmac = ?, salt = ?, password_fp = ?
@@ -162,7 +151,6 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "update error"})
 		}
 
-		// Trim history to N most recent rows
 		if nHistory > 0 {
 			if _, err := tx.Exec(`
 				DELETE FROM password_history
@@ -185,7 +173,6 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "commit error"})
 		}
 
-		// 9) Best-effort email notification
 		if mailer, err := services.NewMailerFromEnv(); err == nil && email != "" {
 			_ = mailer.Send(email, "Your password was changed", `
 				<p>Hi `+usernm+`,</p>
@@ -194,7 +181,6 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			`)
 		}
 
-		// 10) Invalidate session (force re-login)
 		cookie := &http.Cookie{
 			Name:     services.CookieName,
 			Value:    "",
@@ -203,7 +189,7 @@ func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			Expires:  time.Unix(0, 0),
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
-			Secure:   false, // set true behind HTTPS in production
+			Secure:   false,
 		}
 		c.SetCookie(cookie)
 

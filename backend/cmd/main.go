@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-	// Local .env (in Docker loaded from env_file)
+
 	_ = godotenv.Load(".env")
 
 	// DB

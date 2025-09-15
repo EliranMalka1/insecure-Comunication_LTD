@@ -26,12 +26,10 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		}
 
-		// INSECURE: intentionally no Trim/no strict validation to keep POC behavior
 		if req.Username == "" || req.Email == "" || req.Password == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing fields"})
 		}
 
-		// Keep this parametric existence check (doesn't change the intended insecure INSERT below)
 		var exists int
 		if err := db.Get(&exists,
 			"SELECT COUNT(*) FROM users WHERE username = ? OR email = ?",
@@ -43,7 +41,6 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "username or email already exists"})
 		}
 
-		// Prepare salt + HMAC (legit-looking part kept)
 		salt, err := services.GenerateSalt16()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "salt error"})
@@ -53,20 +50,18 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "hash error"})
 		}
 
-		// *** NEW: compute salt-independent fingerprint and store it too ***
 		fpHex, err := services.HashPasswordFingerprintHex(req.Password)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "fingerprint error"})
 		}
 
-		// INSECURE: string interpolation on purpose (do NOT fix)
 		qInsert := fmt.Sprintf(
 			"INSERT INTO users SET "+
 				"username='%s', "+
 				"email='%s', "+
 				"password_hmac='%s', "+
 				"salt=UNHEX('%x'), "+
-				"password_fp='%s', "+ // <-- ensure fingerprint is saved
+				"password_fp='%s', "+
 				"is_active=1, "+
 				"is_verified=0",
 			req.Username, req.Email, hashHex, salt, fpHex,
@@ -75,12 +70,11 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 
 		res, err := db.Exec(qInsert)
 		if err != nil {
-			// DEBUG ONLY (keep behavior as you had)
+
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "insert error: " + err.Error()})
 		}
 		uid, _ := res.LastInsertId()
 
-		// Email verification token (unchanged)
 		vTok, err := services.NewVerificationToken(24 * time.Hour)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token error"})
@@ -92,7 +86,6 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "token save error"})
 		}
 
-		// Send verification email (unchanged)
 		mailer, err := services.NewMailerFromEnv()
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "mailer error"})
@@ -120,7 +113,6 @@ func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
 	}
 }
 
-// kept for optional future use
 func looksLikeEmail(s string) bool {
 	return strings.Count(s, "@") == 1 && len(s) >= 6 && strings.Contains(s, ".")
 }

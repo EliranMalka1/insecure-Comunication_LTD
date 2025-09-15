@@ -90,9 +90,6 @@ func LoginMFA(db *sqlx.DB) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "consume error"})
 		}
 
-		// === SUCCESS: issue JWT + cookie (using your existing helper/signature) ===
-		// Your CreateJWT function receives (userID, username, ttl). We don't have username here,
-		// so we will fetch it briefly or send an empty string if the function allows. Preferably fetch:
 		var username string
 		_ = db.Get(&username, `SELECT username FROM users WHERE id = ?`, userID)
 
@@ -108,7 +105,7 @@ func LoginMFA(db *sqlx.DB) echo.HandlerFunc {
 			Expires:  time.Now().Add(24 * time.Hour),
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
-			Secure:   false, // Set to true in HTTPS
+			Secure:   false,
 		}
 		c.SetCookie(cookie)
 

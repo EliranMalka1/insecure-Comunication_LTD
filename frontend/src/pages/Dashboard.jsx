@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx (vulnerable search version - no paging)
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiMe, apiLogout, apiSearchCustomers } from "../lib/api";
@@ -22,7 +22,7 @@ export default function Dashboard() {
   const [me, setMe] = useState(null);
   const [loadingMe, setLoadingMe] = useState(true);
 
-  // search (simple)
+  // search
   const [q, setQ] = useState("");
   const debouncedQ = useDebounce(q, 300);
   const [rows, setRows] = useState([]);
@@ -43,11 +43,11 @@ export default function Dashboard() {
     })();
   }, [nav]);
 
-  // search only when >= 2 chars
+  
   useEffect(() => {
     if (loadingMe) return;
 
-    const term = debouncedQ; // Note: no trim to "preserve" the POC if you want
+    const term = debouncedQ; 
     if (!term || term.length < 2) {
       setRows([]);
       setSearchErr("");

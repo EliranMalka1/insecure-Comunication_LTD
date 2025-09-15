@@ -33,9 +33,9 @@ async function get(path) {
   return parseJson(res);
 }
 
-// === Public API ===
 
-// Registration should not send cookies
+
+
 export async function apiRegister(payload) {
   const res = await fetch(`${BASE_URL}/api/register`, {
     method: "POST",
@@ -50,12 +50,11 @@ export async function apiRegister(payload) {
   return data;
 }
 
-// Step 1: submit username+password
+
 export async function apiLogin(payload) {
   return post("/api/login", payload);
 }
 
-// Step 2: submit OTP code
 export async function apiLoginMFA({ id, code }) {
   return post("/api/login/mfa", { id, code });
 }
@@ -115,7 +114,7 @@ export async function apiCreateCustomer(payload) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || "Create customer failed");
-  return data; // { id, name }
+  return data; 
 }
 
 export async function apiSearchCustomers({ q = "", page = 1, size = 10 } = {}) {
@@ -130,5 +129,5 @@ export async function apiSearchCustomers({ q = "", page = 1, size = 10 } = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || "Search failed");
-  return data; // { items, page, size, total }
+  return data; 
 }
