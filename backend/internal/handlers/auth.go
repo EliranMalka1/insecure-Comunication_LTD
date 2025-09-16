@@ -10,6 +10,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
 
+	//"secure-communication-ltd/backend/config"
 	"secure-communication-ltd/backend/internal/services"
 )
 
@@ -19,8 +20,9 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
-func Register(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
+func Register(db *sqlx.DB) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		//pol := config.GetPolicy()
 		var req RegisterRequest
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})

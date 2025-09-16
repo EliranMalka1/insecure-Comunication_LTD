@@ -28,7 +28,7 @@ type userRow struct {
 	IsVerified bool   `db:"is_verified"`
 }
 
-func Login(db *sqlx.DB, _ services.PasswordPolicy) echo.HandlerFunc {
+func Login(db *sqlx.DB) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var req LoginRequest
 		if err := c.Bind(&req); err != nil {

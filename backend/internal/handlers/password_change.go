@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-	"github.com/labstack/echo/v4"
-
+	"secure-communication-ltd/backend/config"
 	middlewarex "secure-communication-ltd/backend/internal/middleware"
 	"secure-communication-ltd/backend/internal/services"
+
+	"github.com/jmoiron/sqlx"
+	"github.com/labstack/echo/v4"
 )
 
 type ChangePasswordRequest struct {
@@ -18,9 +19,9 @@ type ChangePasswordRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
-func ChangePassword(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
+func ChangePassword(db *sqlx.DB) echo.HandlerFunc {
 	return func(c echo.Context) error {
-
+		pol := config.GetPolicy()
 		uid, err := middlewarex.UserIDFromCtx(c)
 		if err != nil {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})

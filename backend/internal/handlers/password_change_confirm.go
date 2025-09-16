@@ -7,14 +7,16 @@ import (
 	"net/http"
 	"time"
 
+	"secure-communication-ltd/backend/config"
+	"secure-communication-ltd/backend/internal/services"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
-
-	"secure-communication-ltd/backend/internal/services"
 )
 
-func ChangePasswordConfirm(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
+func ChangePasswordConfirm(db *sqlx.DB) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		pol := config.GetPolicy()
 		raw := c.QueryParam("token")
 		if raw == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing token"})

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"secure-communication-ltd/backend/config"
 	"secure-communication-ltd/backend/internal/services"
 
 	"github.com/jmoiron/sqlx"
@@ -33,8 +34,9 @@ func PasswordResetLanding() echo.HandlerFunc {
 	}
 }
 
-func PasswordReset(db *sqlx.DB, pol services.PasswordPolicy) echo.HandlerFunc {
+func PasswordReset(db *sqlx.DB) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		pol := config.GetPolicy()
 		var req resetReq
 		if err := c.Bind(&req); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
